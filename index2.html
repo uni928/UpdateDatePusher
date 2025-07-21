@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Insert Update Date at Filename Start Tool</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 50px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 10px;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 16px;
+      color: green;
+    }
+    #status.error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>Insert Update Date at Filename Start Tool</h1>
+  <button id="selectFolderBtn">Select Folder</button>
+  <div id="status"></div>
+
+  <script>
+    const selectFolderBtn = document.getElementById('selectFolderBtn');
+    const status = document.getElementById('status');
+
+    selectFolderBtn.addEventListener('click', async () => {
+      status.textContent = '';
+      status.classList.remove('error');
+
+      try {
+        const dirHandle = await window.showDirectoryPicker({
+          id: 'target-folder',
+          mode: 'readwrite'
+        });
+
+        await copyFilesWithDatePrefix(dirHandle);
+
+        status.textContent = '✅ File copying & renaming completed';
+      } catch (err) {
+        console.error(err);
+        status.textContent = `❌ Error: ${err.message}`;
+        status.classList.add('error');
+      }
+    });
+
+    async function copyFilesWithDatePrefix(dirHandle) {
+      for await (const [name, handle] of dirHandle.entries()) {
+        if (handle.kind === 'file') {
+          const file = await handle.getFile();
+
+          // Get date from last modified timestamp (YYYYMMDD)
+          const updatedDate = new Date(file.lastModified);
+          const datePrefix = formatDate(updatedDate);
+
+          // Remove existing leading 8-digit date and optional underscore
+          const nameWithoutDate = name.replace(/^\d{8}_?/, '');
+
+          const newFileName = `${datePrefix}${nameWithoutDate}`;
+
+          if (newFileName !== name) {
+            // Copy file with new name
+            const fileContents = await file.arrayBuffer();
+            const newFileHandle = await dirHandle.getFileHandle(newFileName, { create: true });
+            const writable = await newFileHandle.createWritable();
+            await writable.write(fileContents);
+            await writable.close();
+
+            console.log(`Copied: ${name} → ${newFileName}`);
+          }
+        }
+      }
+    }
+
+    function formatDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}${m}${d}`;
+    }
+  </script>
+</body>
+</html>
