@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Insert Update Date at Filename Start Tool</title>
+  <title>Date Prefix Inserter for Filenames</title>
   <style>
     body {
       font-family: sans-serif;
@@ -16,6 +16,11 @@
       font-size: 16px;
       margin: 10px;
     }
+    label {
+      margin-top: 10px;
+      font-size: 16px;
+      display: block;
+    }
     #status {
       margin-top: 20px;
       font-size: 16px;
@@ -27,13 +32,26 @@
   </style>
 </head>
 <body>
-  <h1>Insert Update Date at Filename Start Tool</h1>
+  <h1>Date Prefix Inserter for Filenames</h1>
   <button id="selectFolderBtn">Select Folder</button>
+
+  <!-- Checkboxes -->
+  <label>
+    <input type="checkbox" id="shortYearCheckbox">
+    Omit the first 2 digits of the year (e.g., 2025 → 25)
+  </label>
+  <label>
+    <input type="checkbox" id="useUnderscoreCheckbox">
+    Use underscore after date
+  </label>
+
   <div id="status"></div>
 
   <script>
     const selectFolderBtn = document.getElementById('selectFolderBtn');
     const status = document.getElementById('status');
+    const shortYearCheckbox = document.getElementById('shortYearCheckbox');
+    const useUnderscoreCheckbox = document.getElementById('useUnderscoreCheckbox');
 
     selectFolderBtn.addEventListener('click', async () => {
       status.textContent = '';
@@ -45,9 +63,11 @@
           mode: 'readwrite'
         });
 
-        await copyFilesWithDatePrefix(dirHandle);
+        const shortYear = shortYearCheckbox.checked;
+        const useUnderscore = useUnderscoreCheckbox.checked;
+        await copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore);
 
-        status.textContent = '✅ File copying & renaming completed';
+        status.textContent = '✅ File copy & rename completed successfully';
       } catch (err) {
         console.error(err);
         status.textContent = `❌ Error: ${err.message}`;
@@ -55,17 +75,17 @@
       }
     });
 
-    async function copyFilesWithDatePrefix(dirHandle) {
+    async function copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore) {
       for await (const [name, handle] of dirHandle.entries()) {
         if (handle.kind === 'file') {
           const file = await handle.getFile();
 
-          // Get date from last modified timestamp (YYYYMMDD)
+          // Get date prefix from last modified date
           const updatedDate = new Date(file.lastModified);
-          const datePrefix = formatDate(updatedDate);
+          const datePrefix = formatDate(updatedDate, shortYear, useUnderscore);
 
-          // Remove existing leading 8-digit date and optional underscore
-          const nameWithoutDate = name.replace(/^\d{8}_?/, '');
+          // Remove existing date prefix if present
+          const nameWithoutDate = name.replace(/^\d{6,8}[-_]?/, '');
 
           const newFileName = `${datePrefix}${nameWithoutDate}`;
 
@@ -83,11 +103,15 @@
       }
     }
 
-    function formatDate(date) {
-      const y = date.getFullYear();
+    function formatDate(date, shortYear, useUnderscore) {
+      let y = date.getFullYear();
+      if (shortYear) {
+        y = String(y).slice(2); // Last 2 digits of year
+      }
       const m = String(date.getMonth() + 1).padStart(2, '0');
       const d = String(date.getDate()).padStart(2, '0');
-      return `${y}${m}${d}`;
+      const separator = useUnderscore ? '_' : '';
+      return `${y}${m}${d}${separator}`;
     }
   </script>
 </body>
