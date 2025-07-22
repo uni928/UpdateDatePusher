@@ -16,6 +16,10 @@
       font-size: 16px;
       margin: 10px;
     }
+    label {
+      margin-top: 15px;
+      font-size: 16px;
+    }
     #status {
       margin-top: 20px;
       font-size: 16px;
@@ -29,11 +33,19 @@
 <body>
   <h1>ファイル名先頭に更新日付挿入ツール</h1>
   <button id="selectFolderBtn">フォルダを選択</button>
+
+  <!-- 新しいチェックボックス -->
+  <label>
+    <input type="checkbox" id="addHyphenCheckbox">
+    日付の後ろにアンダーバーを付ける
+  </label>
+
   <div id="status"></div>
 
   <script>
     const selectFolderBtn = document.getElementById('selectFolderBtn');
     const status = document.getElementById('status');
+    const addHyphenCheckbox = document.getElementById('addHyphenCheckbox');
 
     selectFolderBtn.addEventListener('click', async () => {
       status.textContent = '';
@@ -45,7 +57,8 @@
           mode: 'readwrite'
         });
 
-        await copyFilesWithDatePrefix(dirHandle);
+        const addHyphen = addHyphenCheckbox.checked;
+        await copyFilesWithDatePrefix(dirHandle, addHyphen);
 
         status.textContent = '✅ ファイルの複製＆リネームが完了しました';
       } catch (err) {
@@ -55,17 +68,17 @@
       }
     });
 
-    async function copyFilesWithDatePrefix(dirHandle) {
+    async function copyFilesWithDatePrefix(dirHandle, addHyphen) {
       for await (const [name, handle] of dirHandle.entries()) {
         if (handle.kind === 'file') {
           const file = await handle.getFile();
 
-          // 更新日時から日付取得 (YYYYMMDD)
+          // 更新日時から日付取得 (YYYYMMDD または YYYYMMDD_)
           const updatedDate = new Date(file.lastModified);
-          const datePrefix = formatDate(updatedDate);
+          const datePrefix = formatDate(updatedDate, addHyphen);
 
-          // 先頭の8桁日付＋_がある場合は除去
-          const nameWithoutDate = name.replace(/^\d{8}_?/, '');
+          // 先頭の8桁日付＋_または_がある場合は除去
+          const nameWithoutDate = name.replace(/^\d{8}[__]?/, '');
 
           const newFileName = `${datePrefix}${nameWithoutDate}`;
 
@@ -83,11 +96,11 @@
       }
     }
 
-    function formatDate(date) {
+    function formatDate(date, addHyphen) {
       const y = date.getFullYear();
       const m = String(date.getMonth() + 1).padStart(2, '0');
       const d = String(date.getDate()).padStart(2, '0');
-      return `${y}${m}${d}`;
+      return addHyphen ? `${y}${m}${d}_` : `${y}${m}${d}`;
     }
   </script>
 </body>
