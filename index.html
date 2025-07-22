@@ -17,8 +17,9 @@
       margin: 10px;
     }
     label {
-      margin-top: 15px;
+      margin-top: 10px;
       font-size: 16px;
+      display: block;
     }
     #status {
       margin-top: 20px;
@@ -36,8 +37,12 @@
 
   <!-- 新しいチェックボックス -->
   <label>
-    <input type="checkbox" id="addHyphenCheckbox">
-    日付の後ろにアンダーバーを付ける
+    <input type="checkbox" id="shortYearCheckbox">
+    年の前2文字を省略する (例: 2025 → 25)
+  </label>
+  <label>
+    <input type="checkbox" id="useUnderscoreCheckbox">
+    日付の後ろにアンダーバーを追加
   </label>
 
   <div id="status"></div>
@@ -45,7 +50,8 @@
   <script>
     const selectFolderBtn = document.getElementById('selectFolderBtn');
     const status = document.getElementById('status');
-    const addHyphenCheckbox = document.getElementById('addHyphenCheckbox');
+    const shortYearCheckbox = document.getElementById('shortYearCheckbox');
+    const useUnderscoreCheckbox = document.getElementById('useUnderscoreCheckbox');
 
     selectFolderBtn.addEventListener('click', async () => {
       status.textContent = '';
@@ -57,8 +63,9 @@
           mode: 'readwrite'
         });
 
-        const addHyphen = addHyphenCheckbox.checked;
-        await copyFilesWithDatePrefix(dirHandle, addHyphen);
+        const shortYear = shortYearCheckbox.checked;
+        const useUnderscore = useUnderscoreCheckbox.checked;
+        await copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore);
 
         status.textContent = '✅ ファイルの複製＆リネームが完了しました';
       } catch (err) {
@@ -68,17 +75,17 @@
       }
     });
 
-    async function copyFilesWithDatePrefix(dirHandle, addHyphen) {
+    async function copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore) {
       for await (const [name, handle] of dirHandle.entries()) {
         if (handle.kind === 'file') {
           const file = await handle.getFile();
 
-          // 更新日時から日付取得 (YYYYMMDD または YYYYMMDD_)
+          // 更新日時から日付取得
           const updatedDate = new Date(file.lastModified);
-          const datePrefix = formatDate(updatedDate, addHyphen);
+          const datePrefix = formatDate(updatedDate, shortYear, useUnderscore);
 
-          // 先頭の8桁日付＋_または_がある場合は除去
-          const nameWithoutDate = name.replace(/^\d{8}[__]?/, '');
+          // 先頭の日付＋記号を除去 (例: 20250722- / 250722_)
+          const nameWithoutDate = name.replace(/^\d{6,8}[-_]?/, '');
 
           const newFileName = `${datePrefix}${nameWithoutDate}`;
 
@@ -96,11 +103,15 @@
       }
     }
 
-    function formatDate(date, addHyphen) {
-      const y = date.getFullYear();
+    function formatDate(date, shortYear, useUnderscore) {
+      let y = date.getFullYear();
+      if (shortYear) {
+        y = String(y).slice(2); // 年の下2桁
+      }
       const m = String(date.getMonth() + 1).padStart(2, '0');
       const d = String(date.getDate()).padStart(2, '0');
-      return addHyphen ? `${y}${m}${d}_` : `${y}${m}${d}`;
+      const separator = useUnderscore ? '_' : '';
+      return `${y}${m}${d}${separator}`;
     }
   </script>
 </body>
