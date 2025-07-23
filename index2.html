@@ -21,6 +21,12 @@
       font-size: 16px;
       display: block;
     }
+    input[type="text"] {
+      padding: 5px;
+      font-size: 16px;
+      width: 300px;
+      margin-top: 5px;
+    }
     #status {
       margin-top: 20px;
       font-size: 16px;
@@ -45,7 +51,11 @@
   </label>
   <label>
     <input type="checkbox" id="appendDateSuffixCheckbox">
-    Append yyyy-mm-dd to the end of the file name
+    Append _yyyy-mm-dd to the end of the file name
+  </label>
+  <label>
+    Append custom text to the end of the file name:
+    <input type="text" id="customSuffixInput" placeholder="_(Author: Bob)">
   </label>
 
   <div id="status"></div>
@@ -56,6 +66,7 @@
     const shortYearCheckbox = document.getElementById('shortYearCheckbox');
     const useUnderscoreCheckbox = document.getElementById('useUnderscoreCheckbox');
     const appendDateSuffixCheckbox = document.getElementById('appendDateSuffixCheckbox');
+    const customSuffixInput = document.getElementById('customSuffixInput');
 
     // Mutually exclusive behavior for checkboxes
     appendDateSuffixCheckbox.addEventListener('change', () => {
@@ -86,7 +97,8 @@
         const shortYear = shortYearCheckbox.checked;
         const useUnderscore = useUnderscoreCheckbox.checked;
         const appendDateSuffix = appendDateSuffixCheckbox.checked;
-        await copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore, appendDateSuffix);
+        const customSuffix = customSuffixInput.value.trim();
+        await copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore, appendDateSuffix, customSuffix);
 
         status.textContent = '✅ File copy & rename completed successfully';
       } catch (err) {
@@ -96,7 +108,7 @@
       }
     });
 
-    async function copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore, appendDateSuffix) {
+    async function copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore, appendDateSuffix, customSuffix) {
       for await (const [name, handle] of dirHandle.entries()) {
         if (handle.kind === 'file') {
           const file = await handle.getFile();
@@ -105,17 +117,29 @@
           const datePart = formatDate(updatedDate, shortYear, useUnderscore);
 
           let newFileName;
+          let nameWithoutDate = name.replace(/^\d{6,8}[-_]?/, '');
 
+          // Add date to the beginning only if "appendDateSuffix" is unchecked
+          if (!appendDateSuffix) {
+            newFileName = `${datePart}${nameWithoutDate}`;
+          } else {
+            newFileName = nameWithoutDate;
+          }
+
+          // Append date to the end if checked
           if (appendDateSuffix) {
-            // Append date at the end of the file name (e.g., filename_yyyy-mm-dd.ext)
-            const nameParts = name.split('.');
+            const nameParts = newFileName.split('.');
             const ext = nameParts.pop();
             const baseName = nameParts.join('.');
             newFileName = `${baseName}_${updatedDate.toISOString().slice(0, 10)}.${ext}`;
-          } else {
-            // Remove existing date prefix (e.g., 20250722- / 250722_)
-            const nameWithoutDate = name.replace(/^\d{6,8}[-_]?/, '');
-            newFileName = `${datePart}${nameWithoutDate}`;
+          }
+
+          // Append custom text to the end if provided
+          if (customSuffix) {
+            const nameParts = newFileName.split('.');
+            const ext = nameParts.pop();
+            const baseName = nameParts.join('.');
+            newFileName = `${baseName}${customSuffix}.${ext}`;
           }
 
           if (newFileName !== name) {
