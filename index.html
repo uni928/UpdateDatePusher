@@ -35,7 +35,6 @@
   <h1>ファイル名先頭に更新日付挿入ツール</h1>
   <button id="selectFolderBtn">フォルダを選択</button>
 
-  <!-- 新しいチェックボックス -->
   <label>
     <input type="checkbox" id="shortYearCheckbox">
     年の前2文字を省略する (例: 2025 → 25)
@@ -43,6 +42,10 @@
   <label>
     <input type="checkbox" id="useUnderscoreCheckbox" checked="checked">
     日付の後ろにアンダーバーを追加
+  </label>
+  <label>
+    <input type="checkbox" id="appendDateSuffixCheckbox">
+    ファイル名の後ろに yyyy-mm-dd を付ける
   </label>
 
   <div id="status"></div>
@@ -52,6 +55,23 @@
     const status = document.getElementById('status');
     const shortYearCheckbox = document.getElementById('shortYearCheckbox');
     const useUnderscoreCheckbox = document.getElementById('useUnderscoreCheckbox');
+    const appendDateSuffixCheckbox = document.getElementById('appendDateSuffixCheckbox');
+
+    // 排他制御
+    appendDateSuffixCheckbox.addEventListener('change', () => {
+      if (appendDateSuffixCheckbox.checked) {
+        shortYearCheckbox.checked = false;
+        useUnderscoreCheckbox.checked = false;
+      }
+    });
+
+    [shortYearCheckbox, useUnderscoreCheckbox].forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) {
+          appendDateSuffixCheckbox.checked = false;
+        }
+      });
+    });
 
     selectFolderBtn.addEventListener('click', async () => {
       status.textContent = '';
@@ -65,7 +85,8 @@
 
         const shortYear = shortYearCheckbox.checked;
         const useUnderscore = useUnderscoreCheckbox.checked;
-        await copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore);
+        const appendDateSuffix = appendDateSuffixCheckbox.checked;
+        await copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore, appendDateSuffix);
 
         status.textContent = '✅ ファイルの複製＆リネームが完了しました';
       } catch (err) {
@@ -75,22 +96,29 @@
       }
     });
 
-    async function copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore) {
+    async function copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore, appendDateSuffix) {
       for await (const [name, handle] of dirHandle.entries()) {
         if (handle.kind === 'file') {
           const file = await handle.getFile();
 
-          // 更新日時から日付取得
           const updatedDate = new Date(file.lastModified);
-          const datePrefix = formatDate(updatedDate, shortYear, useUnderscore);
+          const datePart = formatDate(updatedDate, shortYear, useUnderscore);
 
-          // 先頭の日付＋記号を除去 (例: 20250722- / 250722_)
-          const nameWithoutDate = name.replace(/^\d{6,8}[-_]?/, '');
+          let newFileName;
 
-          const newFileName = `${datePrefix}${nameWithoutDate}`;
+          if (appendDateSuffix) {
+            // ファイル名末尾に日付を追加
+            const nameParts = name.split('.');
+            const ext = nameParts.pop();
+            const baseName = nameParts.join('.');
+            newFileName = `${baseName} ${updatedDate.toISOString().slice(0, 10)}.${ext}`;
+          } else {
+            // 先頭の日付＋記号を除去 (例: 20250722- / 250722_)
+            const nameWithoutDate = name.replace(/^\d{6,8}[-_]?/, '');
+            newFileName = `${datePart}${nameWithoutDate}`;
+          }
 
           if (newFileName !== name) {
-            // 新しいファイル名で複製
             const fileContents = await file.arrayBuffer();
             const newFileHandle = await dirHandle.getFileHandle(newFileName, { create: true });
             const writable = await newFileHandle.createWritable();
@@ -106,7 +134,7 @@
     function formatDate(date, shortYear, useUnderscore) {
       let y = date.getFullYear();
       if (shortYear) {
-        y = String(y).slice(2); // 年の下2桁
+        y = String(y).slice(2);
       }
       const m = String(date.getMonth() + 1).padStart(2, '0');
       const d = String(date.getDate()).padStart(2, '0');
