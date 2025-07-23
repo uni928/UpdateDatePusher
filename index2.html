@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Date Prefix Inserter for Filenames</title>
+  <title>Insert Updated Date into File Name Tool</title>
   <style>
     body {
       font-family: sans-serif;
@@ -32,17 +32,20 @@
   </style>
 </head>
 <body>
-  <h1>Date Prefix Inserter for Filenames</h1>
+  <h1>Insert Updated Date into File Name Tool</h1>
   <button id="selectFolderBtn">Select Folder</button>
 
-  <!-- Checkboxes -->
   <label>
     <input type="checkbox" id="shortYearCheckbox">
-    Omit the first 2 digits of the year (e.g., 2025 → 25)
+    Omit first 2 digits of the year (e.g., 2025 → 25)
   </label>
   <label>
     <input type="checkbox" id="useUnderscoreCheckbox" checked="checked">
-    Use underscore after date
+    Add underscore after the date
+  </label>
+  <label>
+    <input type="checkbox" id="appendDateSuffixCheckbox">
+    Append yyyy-mm-dd to the end of the file name
   </label>
 
   <div id="status"></div>
@@ -52,6 +55,23 @@
     const status = document.getElementById('status');
     const shortYearCheckbox = document.getElementById('shortYearCheckbox');
     const useUnderscoreCheckbox = document.getElementById('useUnderscoreCheckbox');
+    const appendDateSuffixCheckbox = document.getElementById('appendDateSuffixCheckbox');
+
+    // Mutually exclusive behavior for checkboxes
+    appendDateSuffixCheckbox.addEventListener('change', () => {
+      if (appendDateSuffixCheckbox.checked) {
+        shortYearCheckbox.checked = false;
+        useUnderscoreCheckbox.checked = false;
+      }
+    });
+
+    [shortYearCheckbox, useUnderscoreCheckbox].forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) {
+          appendDateSuffixCheckbox.checked = false;
+        }
+      });
+    });
 
     selectFolderBtn.addEventListener('click', async () => {
       status.textContent = '';
@@ -65,7 +85,8 @@
 
         const shortYear = shortYearCheckbox.checked;
         const useUnderscore = useUnderscoreCheckbox.checked;
-        await copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore);
+        const appendDateSuffix = appendDateSuffixCheckbox.checked;
+        await copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore, appendDateSuffix);
 
         status.textContent = '✅ File copy & rename completed successfully';
       } catch (err) {
@@ -75,22 +96,29 @@
       }
     });
 
-    async function copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore) {
+    async function copyFilesWithDatePrefix(dirHandle, shortYear, useUnderscore, appendDateSuffix) {
       for await (const [name, handle] of dirHandle.entries()) {
         if (handle.kind === 'file') {
           const file = await handle.getFile();
 
-          // Get date prefix from last modified date
           const updatedDate = new Date(file.lastModified);
-          const datePrefix = formatDate(updatedDate, shortYear, useUnderscore);
+          const datePart = formatDate(updatedDate, shortYear, useUnderscore);
 
-          // Remove existing date prefix if present
-          const nameWithoutDate = name.replace(/^\d{6,8}[-_]?/, '');
+          let newFileName;
 
-          const newFileName = `${datePrefix}${nameWithoutDate}`;
+          if (appendDateSuffix) {
+            // Append date at the end of the file name (e.g., filename_yyyy-mm-dd.ext)
+            const nameParts = name.split('.');
+            const ext = nameParts.pop();
+            const baseName = nameParts.join('.');
+            newFileName = `${baseName} ${updatedDate.toISOString().slice(0, 10)}.${ext}`;
+          } else {
+            // Remove existing date prefix (e.g., 20250722- / 250722_)
+            const nameWithoutDate = name.replace(/^\d{6,8}[-_]?/, '');
+            newFileName = `${datePart}${nameWithoutDate}`;
+          }
 
           if (newFileName !== name) {
-            // Copy file with new name
             const fileContents = await file.arrayBuffer();
             const newFileHandle = await dirHandle.getFileHandle(newFileName, { create: true });
             const writable = await newFileHandle.createWritable();
@@ -106,7 +134,7 @@
     function formatDate(date, shortYear, useUnderscore) {
       let y = date.getFullYear();
       if (shortYear) {
-        y = String(y).slice(2); // Last 2 digits of year
+        y = String(y).slice(2);
       }
       const m = String(date.getMonth() + 1).padStart(2, '0');
       const d = String(date.getDate()).padStart(2, '0');
