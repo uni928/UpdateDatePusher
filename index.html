@@ -111,7 +111,7 @@
             const nameParts = name.split('.');
             const ext = nameParts.pop();
             const baseName = nameParts.join('.');
-            newFileName = `${baseName} ${updatedDate.toISOString().slice(0, 10)}.${ext}`;
+            newFileName = `${baseName}_${updatedDate.toISOString().slice(0, 10)}.${ext}`;
           } else {
             // 先頭の日付＋記号を除去 (例: 20250722- / 250722_)
             const nameWithoutDate = name.replace(/^\d{6,8}[-_]?/, '');
